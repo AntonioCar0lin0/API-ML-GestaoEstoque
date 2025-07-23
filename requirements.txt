@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pandas
+pmdarima
+scikit-learn
+statsmodels
+plotly
+python-dotenv

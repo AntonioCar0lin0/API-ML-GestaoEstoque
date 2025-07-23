@@ -1,0 +1,26 @@
+# Ignora cache de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Ignora arquivos de ambiente virtual
+venv/
+env/
+
+# Ignora arquivos temporários de editor
+*.swp
+*.swo
+*.bak
+*~
+
+# Ignora arquivos de log
+*.log
+
+# Ignora arquivos de configuração pessoais
+.env
+
+# Ignora arquivos de pacotes Python
+*.egg-info/
+*.egg
+

@@ -1,12 +1,19 @@
-from flask import Flask, jsonify
-from flask_cors import CORS
 
-app = Flask(__name__)
-CORS(app)  # libera o acesso ao endpoint por qualquer origem (como seu back-end Node.js)
+# Arquivo principal para configurar o cors, iniciar a aplicação e rotas
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from routes.analytics_route import router as analytics_router
+import logging
 
-@app.route('/api/ping', methods=['GET'])
-def ping():
-    return jsonify({"message": "API Flask conectada com sucesso ao back-end Node.js."})
+app = FastAPI()
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(analytics_router, prefix="/analytics")
+logging.basicConfig(level=logging.DEBUG)
