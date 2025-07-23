@@ -1,3 +1,4 @@
+# Carrega os dados de transação e gera as previsões 
 import pandas as pd
 from database import engine
 from forecasting.model_selector import selecionar_melhor_modelo

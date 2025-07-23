@@ -1,3 +1,4 @@
+# Gera o gráfico JSON com série histórica e previsões (data/previsão)
 import plotly.graph_objects as go
 
 def gerar_grafico_forecast_json(serie_real, previsao_df):

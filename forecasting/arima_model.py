@@ -1,3 +1,4 @@
+# Treinamento com ARIMA
 import pandas as pd
 from pmdarima import auto_arima
 from sklearn.metrics import mean_squared_error

@@ -1,3 +1,5 @@
+# Define as rotas sobre análise e previsão
+# Usa os dados das transações, aplica modelos ARIMA/SARIMA e retorna um JSON 
 from fastapi import APIRouter, Query
 from forecasting.forecasting_service import carregar_dados_transacao, prever
 from forecasting.model_selector import selecionar_melhor_modelo
