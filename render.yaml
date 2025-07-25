@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: api-ml-gestaoestoque
+    runtime: python
+    pythonVersion: 3.11.9
+    buildCommand: |
+      pip install --upgrade pip
+      pip install --no-build-isolation pmdarima
+      pip install -r requirements.txt
+    startCommand: uvicorn app:app --host=0.0.0.0 --port=10000
+    plan: free
+    envVars:
+      - key: PORT
+        value: 10000
