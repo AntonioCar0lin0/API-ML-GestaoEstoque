@@ -1,3 +1,4 @@
+
 # Arquivo principal para configurar o cors, iniciar a aplicação e rotas
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
