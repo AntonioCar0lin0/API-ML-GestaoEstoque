@@ -3,8 +3,11 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 pandas
+numpy
+cython
 pmdarima
 scikit-learn
 statsmodels
 plotly
 python-dotenv
+matplotlib
