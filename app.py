@@ -15,5 +15,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def root():
+    return {"status": "online ✅"}
+
 app.include_router(analytics_router, prefix="/analytics")
 logging.basicConfig(level=logging.DEBUG)
