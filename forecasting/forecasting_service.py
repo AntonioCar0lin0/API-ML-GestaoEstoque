@@ -11,10 +11,16 @@ def carregar_dados_transacao(tipo: str = None):
     df = pd.read_sql(query, engine)
     df['data'] = pd.to_datetime(df['data'])
     df = df.groupby('data').sum().asfreq('D').fillna(0)
+
+    df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0)
+
     return df
 
+
 def prever(modelo, periodo: int = 30):
-    previsao = modelo.predict(n_periods=periodo)
-    ult_data = modelo.arima_res_.data.dates[-1]
+    fitted = modelo.fit()
+    previsao = fitted.forecast(steps=periodo)
+    ult_data = fitted.data.dates[-1]
     datas = pd.date_range(start=ult_data + pd.Timedelta(days=1), periods=periodo)
     return pd.DataFrame({'data': datas, 'previsao': previsao})
+
