@@ -27,4 +27,4 @@ if not DATABASE_URL:
 
 # Cria o engine com a URL final
 engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, pool_pre_ping=True)
