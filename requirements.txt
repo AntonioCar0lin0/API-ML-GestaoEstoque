@@ -10,3 +10,4 @@ statsmodels
 plotly
 python-dotenv
 matplotlib
+requests
