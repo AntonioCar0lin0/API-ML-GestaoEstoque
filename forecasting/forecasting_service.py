@@ -1,25 +1,180 @@
 # forecasting_service.py
 import pandas as pd
 from sqlalchemy import text
-from database import SessionLocal
+from database import get_session, engine
 from forecasting.model_selector import selecionar_melhor_modelo
+import logging
+
+logger = logging.getLogger(__name__)
 
 def carregar_dados_transacao(tipo: str = None):
-    query = "SELECT data, valor FROM transacoes"
-    if tipo in ["receita", "despesa"]:
-        query += f" WHERE tipo = '{tipo}'"
-
-    db = SessionLocal()
+    """Carrega dados de transação do banco usando a conexão correta"""
     try:
-        df = pd.read_sql(text(query), db.bind)  # ✅ usa o bind da sessão
+        # Constrói a query
+        query = "SELECT data, valor FROM transacoes"
+        params = {}
+        
+        if tipo in ["receita", "despesa"]:
+            query += " WHERE tipo = :tipo"
+            params["tipo"] = tipo
+        
+        query += " ORDER BY data"
+        
+        # Usa a sessão do contexto manager
+        with get_session() as session:
+            # ✅ CORREÇÃO: Usa a conexão da sessão corretamente
+            df = pd.read_sql(
+                sql=text(query), 
+                con=session.connection(),  # Use session.connection() em vez de db.bind
+                params=params
+            )
+            
+            if df.empty:
+                logger.warning(f"Nenhum dado encontrado para tipo: {tipo}")
+                return pd.DataFrame(columns=['data', 'valor'])
+            
+            # Processa os dados
+            df['data'] = pd.to_datetime(df['data'])
+            df = df.set_index('data')
+            df = df.groupby(df.index.date).sum()  # Agrupa por dia
+            df.index = pd.to_datetime(df.index)
+            df = df.asfreq('D').fillna(0)  # Preenche dias faltantes
+            
+            logger.info(f"Carregados {len(df)} registros para {tipo or 'todos os tipos'}")
+            return df
+            
+    except Exception as e:
+        logger.error(f"Erro ao carregar dados de transação: {e}")
+        return pd.DataFrame(columns=['data', 'valor'])
+
+def carregar_dados_transacao_alternativo(tipo: str = None):
+    """Versão alternativa usando engine diretamente"""
+    try:
+        query = "SELECT data, valor FROM transacoes"
+        params = {}
+        
+        if tipo in ["receita", "despesa"]:
+            query += " WHERE tipo = %(tipo)s"
+            params["tipo"] = tipo
+        
+        query += " ORDER BY data"
+        
+        # ✅ Usa engine diretamente - mais direto para pandas
+        df = pd.read_sql(
+            sql=query,
+            con=engine,  # Engine funciona diretamente com pandas
+            params=params
+        )
+        
+        if df.empty:
+            logger.warning(f"Nenhum dado encontrado para tipo: {tipo}")
+            return pd.DataFrame(columns=['data', 'valor'])
+        
+        # Processa os dados
         df['data'] = pd.to_datetime(df['data'])
-        df = df.groupby('data').sum().asfreq('D').fillna(0)
+        df = df.set_index('data')
+        df = df.groupby(df.index.date).sum()
+        df.index = pd.to_datetime(df.index)
+        df = df.asfreq('D').fillna(0)
+        
+        logger.info(f"Carregados {len(df)} registros para {tipo or 'todos os tipos'}")
         return df
-    finally:
-        db.close()
+        
+    except Exception as e:
+        logger.error(f"Erro ao carregar dados de transação: {e}")
+        return pd.DataFrame(columns=['data', 'valor'])
 
 def prever(modelo, periodo: int = 30):
-    previsao = modelo.predict(n_periods=periodo)
-    ult_data = modelo.arima_res_.data.dates[-1]
-    datas = pd.date_range(start=ult_data + pd.Timedelta(days=1), periods=periodo)
-    return pd.DataFrame({'data': datas, 'previsao': previsao})
+    """Gera previsões usando o modelo treinado"""
+    try:
+        if not hasattr(modelo, 'predict'):
+            raise ValueError("Modelo não possui método predict")
+        
+        # Gera previsões
+        previsao = modelo.predict(n_periods=periodo)
+        
+        # Calcula datas futuras
+        if hasattr(modelo, 'arima_res_') and hasattr(modelo.arima_res_, 'data'):
+            ult_data = modelo.arima_res_.data.dates[-1]
+        else:
+            # Fallback: usa data atual
+            ult_data = pd.Timestamp.now().normalize()
+        
+        datas = pd.date_range(
+            start=ult_data + pd.Timedelta(days=1), 
+            periods=periodo,
+            freq='D'
+        )
+        
+        resultado = pd.DataFrame({
+            'data': datas, 
+            'previsao': previsao
+        })
+        
+        logger.info(f"Previsão gerada para {periodo} períodos")
+        return resultado
+        
+    except Exception as e:
+        logger.error(f"Erro ao gerar previsão: {e}")
+        return pd.DataFrame(columns=['data', 'previsao'])
+
+def obter_dados_para_modelo(tipo: str = None, dias_historico: int = 365):
+    """Obtém dados formatados para treinamento do modelo"""
+    try:
+        # Carrega dados
+        df = carregar_dados_transacao_alternativo(tipo)
+        
+        if df.empty:
+            return None
+        
+        # Filtra período
+        data_corte = pd.Timestamp.now() - pd.Timedelta(days=dias_historico)
+        df = df[df.index >= data_corte]
+        
+        if len(df) < 30:  # Mínimo de dados necessários
+            logger.warning(f"Poucos dados disponíveis: {len(df)} registros")
+            return None
+        
+        # Retorna série temporal
+        return df['valor']
+        
+    except Exception as e:
+        logger.error(f"Erro ao obter dados para modelo: {e}")
+        return None
+
+def executar_previsao_completa(tipo: str = None, periodo: int = 30):
+    """Pipeline completo de previsão"""
+    try:
+        logger.info(f"Iniciando previsão para {tipo or 'todos os tipos'}")
+        
+        # 1. Carrega dados
+        dados = obter_dados_para_modelo(tipo)
+        if dados is None or dados.empty:
+            return {"erro": "Dados insuficientes para previsão"}
+        
+        # 2. Seleciona e treina modelo
+        modelo = selecionar_melhor_modelo(dados)
+        if modelo is None:
+            return {"erro": "Falha ao treinar modelo"}
+        
+        # 3. Gera previsões
+        previsoes = prever(modelo, periodo)
+        if previsoes.empty:
+            return {"erro": "Falha ao gerar previsões"}
+        
+        # 4. Formata resultado
+        resultado = {
+            "tipo": tipo or "geral",
+            "periodo": periodo,
+            "previsoes": previsoes.to_dict('records'),
+            "total_historico": len(dados),
+            "media_historica": float(dados.mean()),
+            "previsao_total": float(previsoes['previsao'].sum())
+        }
+        
+        logger.info("Previsão concluída com sucesso")
+        return resultado
+        
+    except Exception as e:
+        logger.error(f"Erro no pipeline de previsão: {e}")
+        return {"erro": str(e)}

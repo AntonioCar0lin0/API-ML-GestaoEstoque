@@ -69,13 +69,13 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 @event.listens_for(Pool, "checkout")
 def ping_connection(dbapi_connection, connection_record, connection_proxy):
-    """Testa conexão antes de usar (redundância com pool_pre_ping)"""
+    """Testa conexão antes de usar (forma compatível com psycopg2)"""
     try:
-        # Teste simples
-        dbapi_connection.execute("SELECT 1")
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
     except Exception as e:
         logger.warning(f"Conexão inválida detectada: {e}")
-        # Força nova conexão
         raise DisconnectionError()
 
 # SessionLocal com configurações otimizadas
