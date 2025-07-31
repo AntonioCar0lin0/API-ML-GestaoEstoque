@@ -85,96 +85,21 @@ def carregar_dados_transacao_alternativo(tipo: str = None):
         return pd.DataFrame(columns=['data', 'valor'])
 
 def prever(modelo, periodo: int = 30):
-    """Gera previsões usando o modelo treinado"""
     try:
-        if not hasattr(modelo, 'predict'):
-            raise ValueError("Modelo não possui método predict")
-        
-        # Gera previsões
-        previsao = modelo.predict(n_periods=periodo)
-        
-        # Calcula datas futuras
-        if hasattr(modelo, 'arima_res_') and hasattr(modelo.arima_res_, 'data'):
-            ult_data = modelo.arima_res_.data.dates[-1]
+        if not hasattr(modelo, 'forecast'):
+            raise ValueError("Modelo fornecido não possui método forecast()")
+
+        previsao = modelo.forecast(steps=periodo)
+
+        if hasattr(modelo, 'data') and hasattr(modelo.data, 'dates'):
+            ult_data = modelo.data.dates[-1]
         else:
-            # Fallback: usa data atual
             ult_data = pd.Timestamp.now().normalize()
-        
-        datas = pd.date_range(
-            start=ult_data + pd.Timedelta(days=1), 
-            periods=periodo,
-            freq='D'
-        )
-        
-        resultado = pd.DataFrame({
-            'data': datas, 
-            'previsao': previsao
-        })
-        
-        logger.info(f"Previsão gerada para {periodo} períodos")
-        return resultado
-        
+
+        datas = pd.date_range(start=ult_data + pd.Timedelta(days=1), periods=periodo)
+
+        return pd.DataFrame({'data': datas, 'previsao': previsao})
+
     except Exception as e:
         logger.error(f"Erro ao gerar previsão: {e}")
         return pd.DataFrame(columns=['data', 'previsao'])
-
-def obter_dados_para_modelo(tipo: str = None, dias_historico: int = 365):
-    """Obtém dados formatados para treinamento do modelo"""
-    try:
-        # Carrega dados
-        df = carregar_dados_transacao_alternativo(tipo)
-        
-        if df.empty:
-            return None
-        
-        # Filtra período
-        data_corte = pd.Timestamp.now() - pd.Timedelta(days=dias_historico)
-        df = df[df.index >= data_corte]
-        
-        if len(df) < 30:  # Mínimo de dados necessários
-            logger.warning(f"Poucos dados disponíveis: {len(df)} registros")
-            return None
-        
-        # Retorna série temporal
-        return df['valor']
-        
-    except Exception as e:
-        logger.error(f"Erro ao obter dados para modelo: {e}")
-        return None
-
-def executar_previsao_completa(tipo: str = None, periodo: int = 30):
-    """Pipeline completo de previsão"""
-    try:
-        logger.info(f"Iniciando previsão para {tipo or 'todos os tipos'}")
-        
-        # 1. Carrega dados
-        dados = obter_dados_para_modelo(tipo)
-        if dados is None or dados.empty:
-            return {"erro": "Dados insuficientes para previsão"}
-        
-        # 2. Seleciona e treina modelo
-        modelo = selecionar_melhor_modelo(dados)
-        if modelo is None:
-            return {"erro": "Falha ao treinar modelo"}
-        
-        # 3. Gera previsões
-        previsoes = prever(modelo, periodo)
-        if previsoes.empty:
-            return {"erro": "Falha ao gerar previsões"}
-        
-        # 4. Formata resultado
-        resultado = {
-            "tipo": tipo or "geral",
-            "periodo": periodo,
-            "previsoes": previsoes.to_dict('records'),
-            "total_historico": len(dados),
-            "media_historica": float(dados.mean()),
-            "previsao_total": float(previsoes['previsao'].sum())
-        }
-        
-        logger.info("Previsão concluída com sucesso")
-        return resultado
-        
-    except Exception as e:
-        logger.error(f"Erro no pipeline de previsão: {e}")
-        return {"erro": str(e)}
