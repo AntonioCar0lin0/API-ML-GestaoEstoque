@@ -5,7 +5,6 @@ psycopg2-binary
 pandas
 numpy
 cython
-pmdarima
 scikit-learn
 statsmodels
 plotly

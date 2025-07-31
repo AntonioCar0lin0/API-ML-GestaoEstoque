@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from pmdarima import auto_arima
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.metrics import mean_squared_error
 
 # Gerar série temporal fictícia
@@ -16,12 +17,12 @@ treino = serie[:-horizon]
 teste = serie[-horizon:]
 
 # Treinar modelos
-arima = auto_arima(treino, seasonal=False)
-sarima = auto_arima(treino, seasonal=True, m=7)
+arima_model = ARIMA(treino, order=(1, 1, 1)).fit()
+sarima_model = SARIMAX(treino, order=(1, 1, 1), seasonal_order=(1, 1, 1, 7)).fit()
 
 # Prever
-arima_preds = arima.predict(n_periods=horizon)
-sarima_preds = sarima.predict(n_periods=horizon)
+arima_preds = arima_model.forecast(steps=horizon)
+sarima_preds = sarima_model.forecast(steps=horizon)
 
 # RMSE
 rmse_arima = np.sqrt(mean_squared_error(teste, arima_preds))
@@ -32,7 +33,7 @@ plt.figure(figsize=(12, 6))
 plt.plot(serie, label='Histórico', color='blue')
 plt.plot(teste.index, arima_preds, '--', label=f'ARIMA (RMSE={rmse_arima:.2f})', color='orange')
 plt.plot(teste.index, sarima_preds, '--', label=f'SARIMA (RMSE={rmse_sarima:.2f})', color='green')
-plt.title("Previsão ARIMA vs SARIMA")
+plt.title("Previsão ARIMA vs SARIMA (usando statsmodels)")
 plt.xlabel("Data")
 plt.ylabel("Valor")
 plt.legend()

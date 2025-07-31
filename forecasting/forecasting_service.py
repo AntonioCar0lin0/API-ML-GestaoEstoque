@@ -11,7 +11,7 @@ def carregar_dados_transacao(tipo: str = None):
 
     db = SessionLocal()
     try:
-        df = pd.read_sql(text(query), db.bind)  #  usa o bind da sessão
+        df = pd.read_sql(text(query), db.bind)  # ✅ usa o bind da sessão
         df['data'] = pd.to_datetime(df['data'])
         df = df.groupby('data').sum().asfreq('D').fillna(0)
         return df
