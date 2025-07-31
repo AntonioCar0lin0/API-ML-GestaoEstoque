@@ -7,45 +7,46 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def carregar_dados_transacao(tipo: str = None):
-    """Carrega dados de transação do banco usando a conexão correta"""
+def carregar_dados_transacao(tipo: str = None, id_usuario: int = None):
     try:
-        # Constrói a query
-        query = "SELECT data, valor FROM transacoes"
+        query = "SELECT t.data, t.valor FROM transacoes t JOIN produtos p ON t.produtoId = p.id"
+        clauses = []
         params = {}
-        
+
         if tipo in ["receita", "despesa"]:
-            query += " WHERE tipo = :tipo"
+            clauses.append("t.tipo = :tipo")
             params["tipo"] = tipo
         
-        query += " ORDER BY data"
-        
-        # Usa a sessão do contexto manager
+        if id_usuario:
+            query += " JOIN itemvenda iv ON t.produtoId = iv.id_produto"
+            query += " JOIN venda v ON iv.id_venda = v.id"
+            clauses.append("v.id_usuario = :id_usuario")
+            params["id_usuario"] = id_usuario
+
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+
+        query += " ORDER BY t.data"
+
         with get_session() as session:
-            # ✅ CORREÇÃO: Usa a conexão da sessão corretamente
-            df = pd.read_sql(
-                sql=text(query), 
-                con=session.connection(),  # Use session.connection() em vez de db.bind
-                params=params
-            )
-            
+            df = pd.read_sql(sql=text(query), con=session.connection(), params=params)
+
             if df.empty:
-                logger.warning(f"Nenhum dado encontrado para tipo: {tipo}")
+                logger.warning(f"Nenhum dado encontrado para o usuário {id_usuario} e tipo '{tipo}'")
                 return pd.DataFrame(columns=['data', 'valor'])
-            
-            # Processa os dados
+
             df['data'] = pd.to_datetime(df['data'])
             df = df.set_index('data')
-            df = df.groupby(df.index.date).sum()  # Agrupa por dia
+            df = df.groupby(df.index.date).sum()
             df.index = pd.to_datetime(df.index)
-            df = df.asfreq('D').fillna(0)  # Preenche dias faltantes
-            
-            logger.info(f"Carregados {len(df)} registros para {tipo or 'todos os tipos'}")
+            df = df.asfreq('D').fillna(0)
+            logger.info(f"Carregados {len(df)} registros para usuário {id_usuario}")
             return df
-            
+
     except Exception as e:
-        logger.error(f"Erro ao carregar dados de transação: {e}")
+        logger.error(f"Erro ao carregar dados: {e}")
         return pd.DataFrame(columns=['data', 'valor'])
+
 
 def carregar_dados_transacao_alternativo(tipo: str = None):
     """Versão alternativa usando engine diretamente"""
@@ -103,3 +104,23 @@ def prever(modelo, periodo: int = 30):
     except Exception as e:
         logger.error(f"Erro ao gerar previsão: {e}")
         return pd.DataFrame(columns=['data', 'previsao'])
+
+def executar_previsao_completa(id_usuario: int, tipo: str = "receita", periodo: int = 7):
+    df = carregar_dados_transacao(tipo=tipo, id_usuario=id_usuario)
+
+    if df.empty:
+        logger.warning("Nenhum dado histórico disponível para previsão.")
+        return {
+            "historico": pd.DataFrame(),
+            "previsao": pd.DataFrame(),
+            "modelo": "nenhum"
+        }
+
+    modelo, nome_modelo = selecionar_melhor_modelo(df)
+    previsao = prever(modelo, periodo)
+
+    return {
+        "historico": df,
+        "previsao": previsao,
+        "modelo": nome_modelo
+    }
