@@ -9,17 +9,18 @@ logger = logging.getLogger(__name__)
 
 def carregar_dados_transacao(tipo: str = None, id_usuario: int = None):
     try:
-        query = "SELECT t.data, t.valor FROM transacoes t JOIN produtos p ON t.produtoId = p.id"
+        # ⬇️ Corrigido com aspas duplas no produtoId
+        query = 'SELECT t.data, t.valor FROM transacoes t JOIN produtos p ON t."produtoId" = p.id'
         clauses = []
         params = {}
 
         if tipo in ["receita", "despesa"]:
             clauses.append("t.tipo = :tipo")
             params["tipo"] = tipo
-        
+
         if id_usuario:
-            query += " JOIN itemvenda iv ON t.produtoId = iv.id_produto"
-            query += " JOIN venda v ON iv.id_venda = v.id"
+            query += ' JOIN itens_venda iv ON t."produtoId" = iv.id_produto'
+            query += " JOIN vendas v ON iv.id_venda = v.id"
             clauses.append("v.id_usuario = :id_usuario")
             params["id_usuario"] = id_usuario
 
