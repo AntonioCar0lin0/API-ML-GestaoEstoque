@@ -5,6 +5,7 @@ import os
 import requests
 import json
 import logging
+import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 # Função para gerar o prompt, com base nos dados do usuário
@@ -47,7 +48,7 @@ def gerar_prompt_recomendacao(resultados_forecast: dict) -> str:
 
         # Montar prompt
         prompt = f"""
-Você é um assistente financeiro. Com base nos seguintes dados, forneça até 3 recomendações de negócio claras, objetivas e práticas:
+Você é um assistente financeiro. Com base nos seguintes dados,mesmoo que sejam fornecidos dados insuficientes, forneça até 3 recomendações de negócio claras, objetivas e práticas:
 
 - Receita média diária: R${receita_media:.2f}
 - Despesa média diária: R${despesa_media:.2f}
@@ -57,6 +58,8 @@ Você é um assistente financeiro. Com base nos seguintes dados, forneça até 3
 
 Use frases curtas e diretas para um gestor de pequenas empresas.
 Responda em formato de tópicos.
+É obrigatório que tenham recomendações independente da situação, mesmo que sejam genéricas
+Se os dados estiverem muito longe da realidade, os ignore e não leve em consideração na sua recomendação. Por exemplo, valores iguais a 0
         """.strip()
 
         return prompt
@@ -67,27 +70,23 @@ Responda em formato de tópicos.
 
 # Aqui faz a chamada para a API e retorna um text
 def consultar_gemini(prompt: str) -> str:
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+    try:
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        if not GEMINI_API_KEY:
+            raise ValueError("❌ Chave da API Gemini não encontrada no ambiente (.env)!")
 
-    body = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt}
-                ]
-            }
-        ]
-    }
+        genai.configure(api_key=GEMINI_API_KEY)
 
-    response = requests.post(url, headers={"Content-Type": "application/json"}, data=json.dumps(body))
-    data = response.json()
+        model = genai.GenerativeModel('gemini-2.5-pro')
 
-    texto = (
-        data.get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", " Nenhuma recomendação gerada.")
-    )
+        response = model.generate_content(prompt)
 
-    return texto.strip()
+        texto = response.text.strip()
+        if not texto:
+            return "Nenhuma recomendação gerada pelo Gemini."
+
+        return texto
+
+    except Exception as e:
+        logger.error(f"Erro ao consultar Gemini: {e}")
+        return "Erro ao gerar recomendação com IA."
