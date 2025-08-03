@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 def carregar_dados_transacao(tipo: str = None, id_usuario: int = None):
     try:
-        # ⬇️ Corrigido com aspas duplas no produtoId
         query = 'SELECT t.data, t.valor FROM transacoes t JOIN produtos p ON t."produtoId" = p.id'
         clauses = []
         params = {}
@@ -37,16 +36,23 @@ def carregar_dados_transacao(tipo: str = None, id_usuario: int = None):
                 return pd.DataFrame(columns=['data', 'valor'])
 
             df['data'] = pd.to_datetime(df['data'])
+
+            # ✅ Correção: garantir que os valores sejam numéricos
+            df['valor'] = pd.to_numeric(df['valor'], errors='coerce')
+            df = df.dropna(subset=['valor'])
+
             df = df.set_index('data')
             df = df.groupby(df.index.date).sum()
             df.index = pd.to_datetime(df.index)
             df = df.asfreq('D').fillna(0)
+
             logger.info(f"Carregados {len(df)} registros para usuário {id_usuario}")
             return df
 
     except Exception as e:
         logger.error(f"Erro ao carregar dados: {e}")
         return pd.DataFrame(columns=['data', 'valor'])
+
 
 
 def carregar_dados_transacao_alternativo(tipo: str = None):
