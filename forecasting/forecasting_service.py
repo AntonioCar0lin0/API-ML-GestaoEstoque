@@ -9,35 +9,27 @@ logger = logging.getLogger(__name__)
 
 def carregar_dados_transacao(tipo: str = None, id_usuario: int = None):
     try:
-        query = 'SELECT t.data, t.valor FROM transacoes t JOIN produtos p ON t."produtoId" = p.id'
-        clauses = []
+        # Query simplificada - apenas tabela transacoes, ignorando filtro por usuário
+        query = "SELECT data, valor FROM transacoes"
         params = {}
 
+        # Filtro apenas por tipo (receita/despesa) 
         if tipo in ["receita", "despesa"]:
-            clauses.append("t.tipo = :tipo")
+            query += " WHERE tipo = :tipo"
             params["tipo"] = tipo
 
-        if id_usuario:
-            query += ' JOIN itens_venda iv ON t."produtoId" = iv.id_produto'
-            query += " JOIN vendas v ON iv.id_venda = v.id"
-            clauses.append("v.id_usuario = :id_usuario")
-            params["id_usuario"] = id_usuario
-
-        if clauses:
-            query += " WHERE " + " AND ".join(clauses)
-
-        query += " ORDER BY t.data"
+        query += " ORDER BY data"
 
         with get_session() as session:
             df = pd.read_sql(sql=text(query), con=session.connection(), params=params)
 
             if df.empty:
-                logger.warning(f"Nenhum dado encontrado para o usuário {id_usuario} e tipo '{tipo}'")
+                logger.warning(f"Nenhum dado encontrado para tipo '{tipo}'")
                 return pd.DataFrame(columns=['data', 'valor'])
 
             df['data'] = pd.to_datetime(df['data'])
 
-            # ✅ Correção: garantir que os valores sejam numéricos
+            # Garantir que os valores sejam numéricos
             df['valor'] = pd.to_numeric(df['valor'], errors='coerce')
             df = df.dropna(subset=['valor'])
 
@@ -46,7 +38,7 @@ def carregar_dados_transacao(tipo: str = None, id_usuario: int = None):
             df.index = pd.to_datetime(df.index)
             df = df.asfreq('D').fillna(0)
 
-            logger.info(f"Carregados {len(df)} registros para usuário {id_usuario}")
+            logger.info(f"Carregados {len(df)} registros para tipo '{tipo}'")
             return df
 
     except Exception as e:

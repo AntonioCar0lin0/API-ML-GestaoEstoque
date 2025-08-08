@@ -14,33 +14,30 @@ def gerar_prompt_recomendacao(resultados_forecast: dict) -> str:
 
     try:
         with get_session() as session:
-            # Produto mais vendido
-            produto_top = session.execute(text("""
-                SELECT p.nome
-                FROM itens_venda i
-                JOIN produtos p ON p.id = i.id_produto
-                GROUP BY p.nome
-                ORDER BY SUM(i.quantidade) DESC
+            # Produto mais vendido - query simples sem JOINs complexos
+            produto_top = session.execute(text('''
+                SELECT nome FROM produtos 
+                ORDER BY quantidade_estoque DESC 
                 LIMIT 1
-            """)).scalar() or "Nenhum"
+            ''')).scalar() or "Nenhum"
 
             # Produto com menor margem
-            produto_menor_margem = session.execute(text("""
+            produto_menor_margem = session.execute(text('''
                 SELECT nome
                 FROM produtos
                 WHERE preco_venda > 0
                 ORDER BY (preco_venda - preco_compra) ASC
                 LIMIT 1
-            """)).scalar() or "Nenhum"
+            ''')).scalar() or "Nenhum"
 
             # Médias
-            receita_media = session.execute(text("""
+            receita_media = session.execute(text('''
                 SELECT AVG(valor) FROM transacoes WHERE tipo = 'receita'
-            """)).scalar() or 0
+            ''')).scalar() or 0
 
-            despesa_media = session.execute(text("""
+            despesa_media = session.execute(text('''
                 SELECT AVG(valor) FROM transacoes WHERE tipo = 'despesa'
-            """)).scalar() or 0
+            ''')).scalar() or 0
 
         # Dados da previsão
         total_previsto = resultados_forecast.get("previsao_total", 0)
@@ -48,18 +45,18 @@ def gerar_prompt_recomendacao(resultados_forecast: dict) -> str:
 
         # Montar prompt
         prompt = f"""
-Você é um assistente financeiro. Com base nos seguintes dados,mesmoo que sejam fornecidos dados insuficientes, forneça até 3 recomendações de negócio claras, objetivas e práticas:
+Você é um assistente financeiro. Com base nos seguintes dados, mesmo que sejam fornecidos dados insuficientes, forneça até 3 recomendações de negócio claras, objetivas e práticas:
 
 - Receita média diária: R${receita_media:.2f}
 - Despesa média diária: R${despesa_media:.2f}
-- Produto mais vendido: {produto_top}
+- Produto com maior estoque: {produto_top}
 - Produto com menor margem de lucro: {produto_menor_margem}
 - Previsão total de receita para os próximos 7 dias: R${total_previsto:.2f}
 
 Use frases curtas e diretas para um gestor de pequenas empresas.
 Responda em formato de tópicos.
-É obrigatório que tenham recomendações independente da situação, mesmo que sejam genéricas
-Se os dados estiverem muito longe da realidade, os ignore e não leve em consideração na sua recomendação. Por exemplo, valores iguais a 0
+É obrigatório que tenham recomendações independente da situação, mesmo que sejam genéricas.
+Se os dados estiverem muito longe da realidade, os ignore e não leve em consideração na sua recomendação. Por exemplo, valores iguais a 0.
         """.strip()
 
         return prompt
